@@ -1,5 +1,5 @@
 # vllm-multi-Arc
-enable vllm on intel multi-arc
+enable vllm on intel multi-arc B70
 
 下载模型Qwen3.6-27B，放在 ~/LLM
 
