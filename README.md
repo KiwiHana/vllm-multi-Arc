@@ -2,7 +2,9 @@
 enable vllm on intel multi-arc
 
 下载模型Qwen3.6-27B，放在 ~/LLM
+
 下载docker-backend.sh ，vllm-qwen3.6-27b-openaikey.sh， run_vllm_bench.py放在~/llm-server
+
 下载镜像
 ```
 docker pull intel/llm-scaler-vllm:0.21.0-b1
