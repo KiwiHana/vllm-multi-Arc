@@ -36,10 +36,22 @@ Note: vllm-qwen3.6-27b-openaikey.sh里修改上下文长度--max-model-len 注�
 ~# cd /llm
 ~# python run_vllm_bench.py --model /llm/models/Qwen3.6-27B --output-len 512
 ```
-脚本run_vllm_bench.py 里BATCH_SIZE=[ ], input_len=[ ] 要手动改，测试结果vllm_benchmark.csv保存到~/llm-server文件夹里
+脚本run_vllm_bench.py 里BATCH_SIZE=[ ], input_len=[ ] 要手动改，测试结果vllm_benchmark.csv保存到~/llm-server文件夹里。
+```
+关键参数解读：
+Batch size 并发的数量
+Benchmark Duration (s) 运行的总时间
+Total Input Tokens 总输入
+Total Generated Tokens 总输出
+Output Token Throughput (tok/s) 等于 Total Generated Tokens 除以 Benchmark Duration (s)
+Total Token Throughput (tok/s) 等于 （Total Input Tokens + Total Generated Tokens）除以 Benchmark Duration (s)
+Mean TTFT (ms) 平均首字时延
+Mean TPOT (ms) 平均rest token rate，ms/token。
+```
+
 
 或者
 ```
 python final_benchmark.py
 ```
-
+final_benchmark.py脚本得到32k~128k输入的TPS
