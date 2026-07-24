@@ -19,6 +19,10 @@ docker pull intel/llm-scaler-vllm:0.21.0-b1
 ~# cd /llm
 ~# bash vllm-qwen3.6-27b-openaikey.sh
 ```
+或者
+```
+~# bash vllm-ccl-qwen3.6-27b-modify.sh
+```
 
 Note: vllm-qwen3.6-27b-openaikey.sh里修改上下文长度--max-model-len 注意这里是（输入+输出）x batch size的最大值。
 
@@ -33,4 +37,9 @@ Note: vllm-qwen3.6-27b-openaikey.sh里修改上下文长度--max-model-len 注�
 ~# python run_vllm_bench.py --model /llm/models/Qwen3.6-27B --output-len 512
 ```
 脚本run_vllm_bench.py 里BATCH_SIZE=[ ], input_len=[ ] 要手动改，测试结果vllm_benchmark.csv保存到~/llm-server文件夹里
+
+或者
+```
+python final_benchmark.py
+```
 
