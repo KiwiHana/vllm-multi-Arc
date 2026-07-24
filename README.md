@@ -20,7 +20,11 @@ docker pull intel/llm-scaler-vllm:0.21.0-b1
 ~# bash vllm-qwen3.6-27b-openaikey.sh
 ```
 
-Note: vllm-qwen3.6-27b-openaikey.sh里修改上下文长度--max-model-len 注意这里是（输入+输出）x batch size的最大值。--quantization sym_int4 或者fp8。
+Note: vllm-qwen3.6-27b-openaikey.sh里修改上下文长度--max-model-len 注意这里是（输入+输出）x batch size的最大值。
+
+--quantization sym_int4 或者fp8。
+
+--tensor-parallel-size 是intel独显的部署数量
 
 第二个窗口测试vllm benchmark。
 ```
