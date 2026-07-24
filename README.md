@@ -11,7 +11,7 @@ docker pull intel/llm-scaler-vllm:0.21.0-b1
 ```
 
 快速操作指令：
-第一个窗口启动Qwen3.6-27B-INT4模型服务。
+## 第一个窗口启动Qwen3.6-27B-INT4模型服务。
 ```
 ~$ cd ~/llm-server
 ~$ sudo bash docker-backend.sh 
@@ -30,7 +30,7 @@ Note: vllm-qwen3.6-27b-openaikey.sh里修改上下文长度--max-model-len 注�
 
 --tensor-parallel-size 是intel独显的部署数量
 
-第二个窗口测试vllm benchmark。
+## 第二个窗口测试vllm benchmark。
 ```
 ~$ sudo docker exec -it llm-serving bash
 ~# cd /llm
