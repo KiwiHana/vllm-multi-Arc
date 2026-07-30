@@ -6,6 +6,7 @@ set -euo pipefail
 # Default container name matches docker-backend.sh
 CONTAINER_NAME="${1:-llm-serving}"
 MASTER_PORT="${MASTER_PORT:-29617}"
+STEP5_TIMEOUT_SEC="${STEP5_TIMEOUT_SEC:-120}"
 
 STEP1_STATUS="FAIL"
 STEP2_STATUS="FAIL"
@@ -141,16 +142,52 @@ print(f"rank={rank} host={socket.gethostname()} device={device} all_reduce={x.it
 
 dist.barrier()
 dist.destroy_process_group()
-PY
-DIST_BACKEND=xccl python3 -m torch.distributed.run --master_port='"$MASTER_PORT"' --nproc_per_node=2 /tmp/xpu_collective_check.py'
+PY'
   rc=$?
   set -e
-  if [[ $rc -eq 0 ]]; then
-    STEP5_STATUS="PASS"
-    STEP5_MSG="xccl all_reduce succeeded on 2 ranks"
-  else
+  if [[ $rc -ne 0 ]]; then
     STEP5_STATUS="FAIL"
-    STEP5_MSG="xccl all_reduce failed"
+    STEP5_MSG="failed to create collective check script in container"
+  else
+    # Try multiple transport profiles because consumer Core platforms often need host/tcp fallback.
+    PROFILE_NAME=""
+    PROFILE_ENV=""
+    PROFILE_RC=1
+    SUCCESS_PROFILE=""
+    LAST_FAIL_REASON=""
+
+    for PROFILE in \
+      "default|DIST_BACKEND=xccl" \
+      "tcp_no_ipc|DIST_BACKEND=xccl CCL_ATL_TRANSPORT=ofi FI_PROVIDER=tcp CCL_IPC=0" \
+      "tcp_no_ipc_composite|DIST_BACKEND=xccl CCL_ATL_TRANSPORT=ofi FI_PROVIDER=tcp CCL_IPC=0 ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1"; do
+      PROFILE_NAME="${PROFILE%%|*}"
+      PROFILE_ENV="${PROFILE#*|}"
+
+      echo "Trying profile: $PROFILE_NAME"
+      set +e
+      sudo docker exec "$CONTAINER_NAME" bash -lc "timeout --signal=TERM --kill-after=10s ${STEP5_TIMEOUT_SEC}s env ${PROFILE_ENV} python3 -m torch.distributed.run --master_port=${MASTER_PORT} --nproc_per_node=2 /tmp/xpu_collective_check.py"
+      PROFILE_RC=$?
+      set -e
+
+      if [[ $PROFILE_RC -eq 0 ]]; then
+        SUCCESS_PROFILE="$PROFILE_NAME"
+        break
+      fi
+
+      if [[ $PROFILE_RC -eq 124 ]]; then
+        LAST_FAIL_REASON="timeout(${STEP5_TIMEOUT_SEC}s) with profile ${PROFILE_NAME}"
+      else
+        LAST_FAIL_REASON="rc=${PROFILE_RC} with profile ${PROFILE_NAME}"
+      fi
+    done
+
+    if [[ -n "$SUCCESS_PROFILE" ]]; then
+      STEP5_STATUS="PASS"
+      STEP5_MSG="xccl all_reduce succeeded (profile=${SUCCESS_PROFILE})"
+    else
+      STEP5_STATUS="FAIL"
+      STEP5_MSG="xccl all_reduce failed (${LAST_FAIL_REASON})"
+    fi
   fi
 fi
 
