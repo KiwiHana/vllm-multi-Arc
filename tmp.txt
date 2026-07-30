@@ -1,0 +1,1 @@
+sudo docker exec llm-serving bash -lc 'env DIST_BACKEND=xccl CCL_ATL_TRANSPORT=ofi FI_PROVIDER=tcp CCL_IPC=0 CCL_ZE_IPC_EXCHANGE=sockets CCL_LOG_LEVEL=info python3 -m torch.distributed.run --master_port=29777 --nproc_per_node=2 /tmp/xpu_collective_check.py'
