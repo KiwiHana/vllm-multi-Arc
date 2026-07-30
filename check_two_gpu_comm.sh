@@ -22,6 +22,40 @@ STEP5_MSG="not run"
 
 STEP3_NOTE="(Note: On consumer Intel Core platforms, direct P2P is typically unsupported.)"
 
+find_free_port() {
+  local port="$1"
+  if ! command -v ss >/dev/null 2>&1; then
+    echo "$port"
+    return 0
+  fi
+
+  while ss -ltn | awk '{print $4}' | grep -Eq ":${port}$"; do
+    port=$((port + 1))
+  done
+  echo "$port"
+}
+
+get_port_owner() {
+  local port="$1"
+  local line=""
+
+  if ! command -v ss >/dev/null 2>&1; then
+    echo "ss not found"
+    return 0
+  fi
+
+  line="$(ss -ltnp 2>/dev/null | awk -v p=":${port}" '$4 ~ p"$" {print; exit}')"
+  if [[ -z "$line" ]]; then
+    line="$(sudo ss -ltnp 2>/dev/null | awk -v p=":${port}" '$4 ~ p"$" {print; exit}')"
+  fi
+
+  if [[ -n "$line" ]]; then
+    echo "$line"
+  else
+    echo "no listener found"
+  fi
+}
+
 print_summary() {
   echo
   echo "================ Two-GPU Communication Summary ================"
@@ -155,6 +189,9 @@ PY'
     PROFILE_RC=1
     SUCCESS_PROFILE=""
     LAST_FAIL_REASON=""
+    LAST_PORT_OWNER_INFO=""
+    BASE_FREE_PORT="$(find_free_port "$MASTER_PORT")"
+    PROFILE_INDEX=0
 
     for PROFILE in \
       "default|DIST_BACKEND=xccl" \
@@ -162,23 +199,33 @@ PY'
       "tcp_no_ipc_composite|DIST_BACKEND=xccl CCL_ATL_TRANSPORT=ofi FI_PROVIDER=tcp CCL_IPC=0 ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1"; do
       PROFILE_NAME="${PROFILE%%|*}"
       PROFILE_ENV="${PROFILE#*|}"
+      RUN_PORT=$((BASE_FREE_PORT + PROFILE_INDEX))
+      PROFILE_LOG="/tmp/xpu_profile_${PROFILE_NAME}_$$.log"
 
-      echo "Trying profile: $PROFILE_NAME"
+      echo "Trying profile: $PROFILE_NAME (master_port=${RUN_PORT})"
       set +e
-      sudo docker exec "$CONTAINER_NAME" bash -lc "timeout --signal=TERM --kill-after=10s ${STEP5_TIMEOUT_SEC}s env ${PROFILE_ENV} python3 -m torch.distributed.run --master_port=${MASTER_PORT} --nproc_per_node=2 /tmp/xpu_collective_check.py"
-      PROFILE_RC=$?
+      sudo docker exec "$CONTAINER_NAME" bash -lc "timeout --signal=TERM --kill-after=10s ${STEP5_TIMEOUT_SEC}s env ${PROFILE_ENV} python3 -m torch.distributed.run --master_port=${RUN_PORT} --nproc_per_node=2 /tmp/xpu_collective_check.py" 2>&1 | tee "$PROFILE_LOG"
+      PROFILE_RC=${PIPESTATUS[0]}
       set -e
 
       if [[ $PROFILE_RC -eq 0 ]]; then
         SUCCESS_PROFILE="$PROFILE_NAME"
+        rm -f "$PROFILE_LOG"
         break
       fi
 
       if [[ $PROFILE_RC -eq 124 ]]; then
         LAST_FAIL_REASON="timeout(${STEP5_TIMEOUT_SEC}s) with profile ${PROFILE_NAME}"
+      elif grep -q "EADDRINUSE" "$PROFILE_LOG"; then
+        LAST_PORT_OWNER_INFO="$(get_port_owner "$RUN_PORT")"
+        echo "Port owner info for ${RUN_PORT}: ${LAST_PORT_OWNER_INFO}"
+        LAST_FAIL_REASON="master_port in use (profile=${PROFILE_NAME}, port=${RUN_PORT})"
       else
         LAST_FAIL_REASON="rc=${PROFILE_RC} with profile ${PROFILE_NAME}"
       fi
+
+      rm -f "$PROFILE_LOG"
+      PROFILE_INDEX=$((PROFILE_INDEX + 1))
     done
 
     if [[ -n "$SUCCESS_PROFILE" ]]; then
@@ -186,7 +233,11 @@ PY'
       STEP5_MSG="xccl all_reduce succeeded (profile=${SUCCESS_PROFILE})"
     else
       STEP5_STATUS="FAIL"
-      STEP5_MSG="xccl all_reduce failed (${LAST_FAIL_REASON})"
+      if [[ -n "$LAST_PORT_OWNER_INFO" ]]; then
+        STEP5_MSG="xccl all_reduce failed (${LAST_FAIL_REASON}; owner=${LAST_PORT_OWNER_INFO})"
+      else
+        STEP5_MSG="xccl all_reduce failed (${LAST_FAIL_REASON})"
+      fi
     fi
   fi
 fi
