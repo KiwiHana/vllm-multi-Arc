@@ -1,6 +1,3 @@
-sudo docker exec llm-serving bash -lc 'env DIST_BACKEND=xccl CCL_ATL_TRANSPORT=ofi FI_PROVIDER=tcp CCL_IPC=0 CCL_ZE_IPC_EXCHANGE=sockets CCL_LOG_LEVEL=info python3 -m torch.distributed.run --master_port=29777 --nproc_per_node=2 /tmp/xpu_collective_check.py'
-
-
 sudo docker exec llm-serving bash -lc 'cat > /tmp/xpu_collective_check.py << "PY"
 import os
 import socket
@@ -26,3 +23,177 @@ dist.destroy_process_group()
 PY'
 
 sudo docker exec llm-serving bash -lc 'env DIST_BACKEND=xccl CCL_ATL_TRANSPORT=ofi FI_PROVIDER=tcp CCL_IPC=0 CCL_ZE_IPC_EXCHANGE=sockets CCL_LOG_LEVEL=info python3 -m torch.distributed.run --master_port=29777 --nproc_per_node=2 /tmp/xpu_collective_check.py'
+
+
+user@user-iGame-Z790D5-ULTRA:~/llm-server$ bash check_two_gpu_comm.sh 
+[1/5] Host GPU discovery
+                                                                  
+  Device ID     Device Information                                
+  0             Device Name: Intel(R) Graphics [0xe223]           
+                Device State: normal                              
+                Vendor Name: Intel(R) Corporation                 
+                SOC UUID: 00000000-0000-0003-0000-0000e2238086    
+                PCI BDF Address: 0000:03:00.0                     
+                DRM Device: /dev/dri/card1                        
+                Function Type: physical                           
+                                                                  
+  1             Device Name: Intel(R) Graphics [0xe223]           
+                Device State: normal                              
+                Vendor Name: Intel(R) Corporation                 
+                SOC UUID: 00000000-0000-0008-0000-0000e2238086    
+                PCI BDF Address: 0000:08:00.0                     
+                DRM Device: /dev/dri/card2                        
+                Function Type: physical                           
+                                                                  
+
+[2/5] Host GPU topology matrix (expect NODE/XL, not necessarily P2P)
+                                                                                 
+              GPU 0/0     GPU 1/0     NIC0     NIC1     NIC2     CPU Affinity    
+  GPU 0/0     S           PHB         SYS      SYS      SYS      0-23            
+  GPU 1/0     PHB         S           SYS      SYS      SYS      0-23            
+  NIC0        SYS         SYS         S        PHB      PHB      0-23            
+  NIC1        SYS         SYS         PHB      S        PHB      0-23            
+  NIC2        SYS         SYS         PHB      PHB      S        0-23            
+                                                                                 
+
+[3/5] Low-level P2P test tool check
+ze_peer not found on host
+
+[4/5] Check container and XPU visibility
+torch 2.11.0+xpu
+xpu_available True
+xpu_count 2
+
+[5/5] Container distributed collective test (xccl all_reduce)
+Trying profile: default (master_port=29618)
+
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+2026:07:30-03:15:26:  293 |CCL_WARN| did not find MPI-launcher specific variables, switch to ATL/OFI, to force enable ATL/MPI set CCL_ATL_TRANSPORT=mpi
+2026:07:30-03:15:26:  293 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:07:30-03:15:27:  294 |CCL_WARN| did not find MPI-launcher specific variables, switch to ATL/OFI, to force enable ATL/MPI set CCL_ATL_TRANSPORT=mpi
+2026:07:30-03:15:27:  294 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+W0730 03:17:24.959000 268 torch/distributed/elastic/agent/server/api.py:739] Received 15 death signal, shutting down workers
+W0730 03:17:24.960000 268 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 293 closing signal SIGTERM
+W0730 03:17:24.960000 268 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 294 closing signal SIGTERM
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/run.py", line 994, in <module>
+    main()
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 362, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/run.py", line 990, in main
+    run(args)
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/run.py", line 981, in run
+    elastic_launch(
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 170, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 308, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/metrics/api.py", line 134, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 731, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 908, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 86, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 268 got signal: 15
+Trying profile: tcp_no_ipc (master_port=29619)
+
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+2026:07:30-03:17:27:  334 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
+2026:07:30-03:17:27:  334 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:07:30-03:17:27:  335 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+W0730 03:19:25.242000 309 torch/distributed/elastic/agent/server/api.py:739] Received 15 death signal, shutting down workers
+W0730 03:19:25.243000 309 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 334 closing signal SIGTERM
+W0730 03:19:25.243000 309 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 335 closing signal SIGTERM
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/run.py", line 994, in <module>
+    main()
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 362, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/run.py", line 990, in main
+    run(args)
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/run.py", line 981, in run
+    elastic_launch(
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 170, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 308, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/metrics/api.py", line 134, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 731, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 908, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 86, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 309 got signal: 15
+Trying profile: tcp_no_ipc_composite (master_port=29620)
+
+*****************************************
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+*****************************************
+2026:07:30-03:19:27:  375 |CCL_WARN| value of CCL_ATL_TRANSPORT changed to be ofi (default:mpi)
+2026:07:30-03:19:27:  375 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+2026:07:30-03:19:27:  376 |CCL_WARN| could not get local_idx/count from environment variables, trying to get them from ATL
+W0730 03:21:25.524000 350 torch/distributed/elastic/agent/server/api.py:739] Received 15 death signal, shutting down workers
+W0730 03:21:25.524000 350 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 375 closing signal SIGTERM
+W0730 03:21:25.524000 350 torch/distributed/elastic/multiprocessing/api.py:1012] Sending process 376 closing signal SIGTERM
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/run.py", line 994, in <module>
+    main()
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 362, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/run.py", line 990, in main
+    run(args)
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/run.py", line 981, in run
+    elastic_launch(
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 170, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 308, in launch_agent
+    result = agent.run()
+             ^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/metrics/api.py", line 134, in wrapper
+    result = f(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 731, in run
+    result = self._invoke_run(role)
+             ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 908, in _invoke_run
+    time.sleep(monitor_interval)
+  File "/opt/venv/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 86, in _terminate_process_handler
+    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
+torch.distributed.elastic.multiprocessing.api.SignalException: Process 350 got signal: 15
+
+Result: Collective communication on 2 XPUs is healthy if both ranks print all_reduce=3.0
+
+================ Two-GPU Communication Summary ================
+Step   Result Details
+1      PASS   xpu-smi discovery succeeded
+2      PASS   xpu-smi topology -m succeeded
+3      FAIL   ze_peer not found (Note: On consumer Intel Core platforms, direct P2P is typically unsupported.)
+4      PASS   container sees at least 2 XPUs
+5      FAIL   xccl all_reduce failed (timeout(120s) with profile tcp_no_ipc_composite)
+Overall: FAIL
